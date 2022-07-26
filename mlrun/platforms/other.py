@@ -84,6 +84,8 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
     # parameters may still be declared - use them in that case.
     if config.storage.auto_mount_type == "pvc":
         return mount_pvc(**config.get_storage_auto_mount_params())
+    if config.storage.auto_mount_type == "s3":
+        return mount_s3(**config.get_storage_auto_mount_params())
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
 
@@ -214,7 +216,7 @@ def mount_s3(
         container = container_op.container
         if _endpoint_url:
             container.add_env_variable(
-                k8s_client.V1EnvVar(name=prefix + "S3_ENDPOINT_URL", value=endpoint_url)
+                k8s_client.V1EnvVar(name=prefix + "S3_ENDPOINT_URL", value=_endpoint_url)
             )
         if aws_region:
             container.add_env_variable(
