@@ -84,62 +84,62 @@ jobs:
           input_docker_registries=${{ github.event.inputs.docker_registries }} && \
           echo ${input_docker_registries:-ghcr.io/})"
         echo "::set-output name=mlrun_cache_date::$(date +%s)"
-    - name: Docker login
-      # all suffixed with "| true" to allow failures if secrets are not defined (fork)
-      run: |
-        echo ${{ secrets.GHCR_DOCKER_REGISTRY_PASSWORD }} | \
-          docker login ghcr.io -u ${{ secrets.GHCR_DOCKER_REGISTRY_USERNAME }} --password-stdin | true
-        echo ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }} | \
-          docker login registry.hub.docker.com -u ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }} \
-          --password-stdin | true
-        echo ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }} | \
-          docker login quay.io -u ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }} \
-          --password-stdin | true
-
-    - name: Pull cache, build and push image
-
-      # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
-      # to use it and run much faster
-      if: ${{ matrix.image-name != 'test' }}
-      run: |
-        for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
-          do \
-            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-            MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
-            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
-            MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
-            make push-${{ matrix.image-name }}; \
-          done;
-
-    - name: Build and push unstable tag
-
-      # we don't need to have unstable tag for the test image
-      # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
-      run: |
-        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
-          do \
-            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-            MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-            MLRUN_VERSION=unstable \
-            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            make push-${{ matrix.image-name }}; \
-          done;
-    - name: Pull cache, build and push test image
-      # When version is given we're probably in a release process, we don't need the test image in that case
-      if: matrix.image-name == 'test' && github.event.inputs.version == ''
-      run: |
-        MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
-        make push-${{ matrix.image-name }}
+#    - name: Docker login
+#      # all suffixed with "| true" to allow failures if secrets are not defined (fork)
+#      run: |
+#        echo ${{ secrets.GHCR_DOCKER_REGISTRY_PASSWORD }} | \
+#          docker login ghcr.io -u ${{ secrets.GHCR_DOCKER_REGISTRY_USERNAME }} --password-stdin | true
+#        echo ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }} | \
+#          docker login registry.hub.docker.com -u ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }} \
+#          --password-stdin | true
+#        echo ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }} | \
+#          docker login quay.io -u ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }} \
+#          --password-stdin | true
+#
+#    - name: Pull cache, build and push image
+#
+#      # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
+#      # to use it and run much faster
+#      if: ${{ matrix.image-name != 'test' }}
+#      run: |
+#        for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
+#          do \
+#            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+#            MLRUN_DOCKER_REGISTRY=$registry \
+#            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+#            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+#            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
+#            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+#            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
+#            MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
+#            make push-${{ matrix.image-name }}; \
+#          done;
+#
+#    - name: Build and push unstable tag
+#
+#      # we don't need to have unstable tag for the test image
+#      # And we don't need to run this when triggered manually (workflow dispatch)
+#      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
+#      run: |
+#        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
+#          do \
+#            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+#            MLRUN_DOCKER_REGISTRY=$registry \
+#            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+#            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+#            MLRUN_VERSION=unstable \
+#            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+#            make push-${{ matrix.image-name }}; \
+#          done;
+#    - name: Pull cache, build and push test image
+#      # When version is given we're probably in a release process, we don't need the test image in that case
+#      if: matrix.image-name == 'test' && github.event.inputs.version == ''
+#      run: |
+#        MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
+#        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
+#        MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
+#        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
+#        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
+#        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
+#        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
+#        make push-${{ matrix.image-name }}
