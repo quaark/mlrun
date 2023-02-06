@@ -961,6 +961,8 @@ def run_pipeline(
                 "run pipeline require access to remote api-service"
                 ", please set the dbpath url"
             )
+
+        logger.info("ADAM3", ttl=ttl)
         id = mldb.submit_pipeline(
             project,
             pipeline,
@@ -970,6 +972,7 @@ def run_pipeline(
             namespace=namespace,
             ops=ops,
             artifact_path=artifact_path,
+            ttl=ttl,
         )
 
     else:

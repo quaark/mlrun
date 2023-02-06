@@ -1390,6 +1390,7 @@ class HTTPRunDB(RunDBInterface):
         if isinstance(pipeline, str):
             pipe_file = pipeline
         else:
+            logger.info("ADAM4", ttl=ttl)
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
             conf = new_pipe_meta(artifact_path, ttl, ops)
             kfp.compiler.Compiler().compile(

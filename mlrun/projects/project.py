@@ -2026,6 +2026,7 @@ class MlrunProject(ModelObj):
             inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
 
+        logger.info("ADAM1", ttl=ttl, workflow_spec_ttl=workflow_spec.ttl)
         run = workflow_engine.run(
             self,
             workflow_spec,

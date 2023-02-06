@@ -534,6 +534,7 @@ class _KFPRunner(_PipelineRunner):
             workflow_handler, workflow_spec, project, secrets
         )
 
+        logger.info("ADAM2", workflow_spec_ttl=workflow_spec.ttl)
         namespace = namespace or config.namespace
         id = run_pipeline(
             workflow_handler,
