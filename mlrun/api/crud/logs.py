@@ -17,6 +17,7 @@ import shutil
 import typing
 from http import HTTPStatus
 
+from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
@@ -98,9 +99,19 @@ class Logs(
                         )
                     pod, pod_phase = list(pods.items())[0]
                     if pod_phase != PodPhases.pending:
-                        resp = get_k8s().logs(pod)
-                        if resp:
-                            out = resp.encode()[offset:]
+                        try:
+                            resp = get_k8s().logs(pod)
+                            if resp:
+                                out = resp.encode()[offset:]
+                        except ApiException as exc:
+                            logger.warning(
+                                "Failed to get pod logs from k8s",
+                                exc=exc,
+                                pod_name=pod,
+                                project=project,
+                                run_uid=uid,
+                            )
+                            out = b''
         return run_state, out
 
     def get_log_mtime(self, project: str, uid: str) -> int:

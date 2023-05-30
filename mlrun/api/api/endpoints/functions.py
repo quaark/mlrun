@@ -31,6 +31,7 @@ from fastapi import (
     Response,
 )
 from fastapi.concurrency import run_in_threadpool
+from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
@@ -460,7 +461,12 @@ def build_status(
         state = mlrun.api.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
-        resp = get_k8s().logs(pod)
+        try:
+            resp = get_k8s().logs(pod)
+        except ApiException as exc:
+            logger.warning(f"failed to get pod logs {pod}, {exc}")
+            resp = ""
+
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
