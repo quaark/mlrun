@@ -537,7 +537,7 @@ default_config = {
             "verbose": True,
         },
         "pagination": {
-            "default_page_size": 200,
+            "default_page_size": 1000,
             "page_limit": 1000000,
             "page_size_limit": 1000000,
             "pagination_cache": {

@@ -2470,7 +2470,8 @@ class TestArtifacts(TestDatabaseBase):
         [
             pytest.param(
                 {
-                    "limit": 1001,
+                    "limit": mlrun.config.config.httpdb.pagination.default_page_size
+                    + 1,
                     "best_iteration": True,
                     "tag": "latest",
                 },
@@ -2487,7 +2488,8 @@ class TestArtifacts(TestDatabaseBase):
             ),
             pytest.param(
                 {
-                    "limit": 1001,
+                    "limit": mlrun.config.config.httpdb.pagination.default_page_size
+                    + 1,
                     "best_iteration": False,
                     "tag": "latest",
                 },
@@ -2496,7 +2498,8 @@ class TestArtifacts(TestDatabaseBase):
             ),
             pytest.param(
                 {
-                    "limit": 1001,
+                    "limit": mlrun.config.config.httpdb.pagination.default_page_size
+                    + 1,
                     "best_iteration": True,
                     "tag": "any_tag",
                 },
@@ -2505,7 +2508,8 @@ class TestArtifacts(TestDatabaseBase):
             ),
             pytest.param(
                 {
-                    "limit": 1001,
+                    "limit": mlrun.config.config.httpdb.pagination.default_page_size
+                    + 1,
                     "best_iteration": True,
                     "tag": "latest",
                     "name": "any_name",

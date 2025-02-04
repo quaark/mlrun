@@ -1683,7 +1683,7 @@ class SQLDB(DBInterface):
         }
         default_list_params.update(
             {
-                "limit": 1001,
+                "limit": config.httpdb.pagination.default_page_size + 1,
                 "best_iteration": True,
                 "tag": "latest",
             }
