@@ -20,20 +20,45 @@ import jwt
 import requests
 
 import mlrun.auth.utils
+import mlrun.common.schemas
 import mlrun.errors
 import mlrun.secrets
 import mlrun.utils.helpers
+from mlrun.auth import service_account_token
 from mlrun.config import config as mlconf
+from mlrun.platforms import iguazio as iguazio_platform
 from mlrun.utils import logger
+
+_IGUAZIO_SESSION_COOKIE_TEMPLATE = 'j:{{"sid": "{token}"}}'
 
 
 class TokenProvider(ABC):
     @abstractmethod
     def get_token(self):
+        """
+        Return the current authentication token.
+        """
+        pass
+
+    @abstractmethod
+    def get_auth_headers(self) -> dict[str, str]:
+        """
+        Return authentication headers for the provider.
+        """
+        pass
+
+    @abstractmethod
+    def get_auth_cookies(self) -> dict[str, str]:
+        """
+        Return authentication cookies for the provider.
+        """
         pass
 
     @abstractmethod
     def is_iguazio_session(self):
+        """
+        Return True if the token represents an Iguazio session.
+        """
         pass
 
 
@@ -44,8 +69,74 @@ class StaticTokenProvider(TokenProvider):
     def get_token(self):
         return self.token
 
+    def get_auth_headers(self) -> dict[str, str]:
+        """
+        Return bearer headers unless this is an Iguazio session token.
+        """
+        if self.is_iguazio_session():
+            return {}
+        return {
+            mlrun.common.schemas.HeaderNames.authorization: (
+                mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer + self.token
+            )
+        }
+
+    def get_auth_cookies(self) -> dict[str, str]:
+        """
+        Return Iguazio session cookies when applicable.
+        """
+        if not self.is_iguazio_session():
+            return {}
+        session_cookie = _IGUAZIO_SESSION_COOKIE_TEMPLATE.format(token=self.token)
+        return {
+            mlrun.common.schemas.CookieNames.iguazio: session_cookie,
+        }
+
     def is_iguazio_session(self):
-        return mlrun.platforms.iguazio.is_iguazio_session(self.token)
+        return iguazio_platform.is_iguazio_session(self.token)
+
+
+class ServiceAccountTokenProvider(TokenProvider):
+    """
+    A token provider that uses a Kubernetes service account token.
+
+    :param service_account_client: Optional service account token client.
+    """
+
+    def __init__(
+        self,
+        service_account_client: typing.Optional[service_account_token.Client] = None,
+    ):
+        """
+        Initialize the service account token provider.
+        """
+        self._service_account_client = (
+            service_account_client or service_account_token.Client()
+        )
+
+    def get_token(self):
+        """
+        Return the current service account token.
+        """
+        return self._service_account_client.token
+
+    def get_auth_headers(self) -> dict[str, str]:
+        """
+        Return authentication headers for service-account authentication.
+        """
+        return self._service_account_client.auth_headers
+
+    def get_auth_cookies(self) -> dict[str, str]:
+        """
+        Return authentication cookies for service-account authentication.
+        """
+        return {}
+
+    def is_iguazio_session(self):
+        """
+        Return False since service-account tokens are not Iguazio sessions.
+        """
+        return False
 
 
 class DynamicTokenProvider(TokenProvider):
@@ -89,6 +180,24 @@ class DynamicTokenProvider(TokenProvider):
 
     def is_iguazio_session(self):
         return False
+
+    def get_auth_headers(self) -> dict[str, str]:
+        """
+        Return bearer authentication headers for the current token.
+        """
+        if not self._token:
+            return {}
+        return {
+            mlrun.common.schemas.HeaderNames.authorization: (
+                mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer + self._token
+            )
+        }
+
+    def get_auth_cookies(self) -> dict[str, str]:
+        """
+        Return authentication cookies for the provider.
+        """
+        return {}
 
     def fetch_token(self):
         mlrun.utils.helpers.run_with_retry(

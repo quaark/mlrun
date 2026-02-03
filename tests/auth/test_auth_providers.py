@@ -24,7 +24,11 @@ import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
 import mlrun.utils.logger
-from mlrun.auth.providers import IGTokenProvider
+from mlrun.auth.providers import (
+    IGTokenProvider,
+    ServiceAccountTokenProvider,
+    StaticTokenProvider,
+)
 from mlrun.config import config
 
 
@@ -41,6 +45,102 @@ def encoded_jwt_token():
     }
     token = jwt.encode(payload, key=None, algorithm="none")
     return token, iat, exp
+
+
+TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND = "sa"
+TEST_SERVICE_ACCOUNT_TOKEN = "test-sa-token"
+TEST_SERVICE_ACCOUNT_AUTH_HEADERS = {
+    mlrun.common.schemas.HeaderNames.igz_authenticator_kind: (
+        TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND
+    ),
+    mlrun.common.schemas.HeaderNames.authorization: (
+        mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+        + TEST_SERVICE_ACCOUNT_TOKEN
+    ),
+}
+TEST_IGUAZIO_SESSION_COOKIE_TEMPLATE = 'j:{{"sid": "{token}"}}'
+TEST_IGUAZIO_SESSION_TOKEN = "123456789012345678901-abc"
+TEST_STATIC_TOKEN = "static-token"
+
+
+def test_service_account_token_provider_get_token():
+    """Verify the provider returns the client token."""
+    service_account_client = MagicMock()
+    service_account_client.token = TEST_SERVICE_ACCOUNT_TOKEN
+    provider = ServiceAccountTokenProvider(
+        service_account_client=service_account_client
+    )
+    assert provider.get_token() == TEST_SERVICE_ACCOUNT_TOKEN
+
+
+def test_service_account_token_provider_get_auth_headers():
+    """Verify the provider returns the client auth headers."""
+    service_account_client = MagicMock()
+    service_account_client.token = TEST_SERVICE_ACCOUNT_TOKEN
+    service_account_client.auth_headers = TEST_SERVICE_ACCOUNT_AUTH_HEADERS
+    provider = ServiceAccountTokenProvider(
+        service_account_client=service_account_client
+    )
+    assert provider.get_auth_headers() == TEST_SERVICE_ACCOUNT_AUTH_HEADERS
+
+
+def test_service_account_token_provider_is_not_iguazio_session():
+    """Verify service-account tokens are not Iguazio sessions."""
+    service_account_client = MagicMock()
+    service_account_client.token = TEST_SERVICE_ACCOUNT_TOKEN
+    service_account_client.auth_headers = TEST_SERVICE_ACCOUNT_AUTH_HEADERS
+    provider = ServiceAccountTokenProvider(
+        service_account_client=service_account_client
+    )
+    assert provider.is_iguazio_session() is False
+
+
+def test_service_account_token_provider_get_auth_cookies():
+    """Verify service-account provider returns empty cookies."""
+    service_account_client = MagicMock()
+    service_account_client.token = TEST_SERVICE_ACCOUNT_TOKEN
+    service_account_client.auth_headers = TEST_SERVICE_ACCOUNT_AUTH_HEADERS
+    provider = ServiceAccountTokenProvider(
+        service_account_client=service_account_client
+    )
+    assert provider.get_auth_cookies() == {}
+
+
+def test_static_token_provider_bearer_headers():
+    """Verify static token provider returns bearer headers."""
+    provider = StaticTokenProvider(TEST_STATIC_TOKEN)
+    expected = {
+        mlrun.common.schemas.HeaderNames.authorization: (
+            mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer + TEST_STATIC_TOKEN
+        )
+    }
+    assert provider.get_auth_headers() == expected
+    assert provider.get_auth_cookies() == {}
+
+
+def test_static_token_provider_iguazio_session_cookies():
+    """Verify iguazio session tokens use cookies instead of headers."""
+    provider = StaticTokenProvider(TEST_IGUAZIO_SESSION_TOKEN)
+    expected_cookie = TEST_IGUAZIO_SESSION_COOKIE_TEMPLATE.format(
+        token=TEST_IGUAZIO_SESSION_TOKEN
+    )
+    assert provider.get_auth_headers() == {}
+    assert provider.get_auth_cookies() == {
+        mlrun.common.schemas.CookieNames.iguazio: expected_cookie,
+    }
+
+
+def test_ig_token_provider_auth_headers_and_cookies():
+    """Verify OAuth token provider returns bearer headers without cookies."""
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = TEST_STATIC_TOKEN
+    expected_headers = {
+        mlrun.common.schemas.HeaderNames.authorization: (
+            mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer + TEST_STATIC_TOKEN
+        )
+    }
+    assert provider.get_auth_headers() == expected_headers
+    assert provider.get_auth_cookies() == {}
 
 
 def test_ig_token_provider_successful_flow(encoded_jwt_token):

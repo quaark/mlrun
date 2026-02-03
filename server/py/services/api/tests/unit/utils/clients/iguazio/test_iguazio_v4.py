@@ -41,14 +41,24 @@ from framework.utils.asyncio import maybe_coroutine
 
 TEST_PROJECT_NAME = "test-project"
 TEST_PROJECT_OWNER = "test-owner"
-TEST_SERVICE_ACCOUNT_AUTH_HEADERS = {"Authorization": "Bearer test-sa-token"}
+TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND = "sa"
+TEST_SERVICE_ACCOUNT_TOKEN = "test-sa-token"
+TEST_SERVICE_ACCOUNT_AUTH_HEADERS = {
+    mlrun.common.schemas.HeaderNames.igz_authenticator_kind: (
+        TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND
+    ),
+    mlrun.common.schemas.HeaderNames.authorization: (
+        mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+        + TEST_SERVICE_ACCOUNT_TOKEN
+    ),
+}
 
 
 @pytest.fixture
 def mock_service_account_auth_headers():
     """Mock the service account token client auth_headers property to avoid file access"""
     with unittest.mock.patch(
-        "framework.utils.clients.service_account_token.Client.auth_headers",
+        "mlrun.auth.service_account_token.Client.auth_headers",
         TEST_SERVICE_ACCOUNT_AUTH_HEADERS,
     ):
         yield TEST_SERVICE_ACCOUNT_AUTH_HEADERS
@@ -634,7 +644,7 @@ def test_store_project(
 def test_delete_project(mock_session, iguazio_client, igv4_auth_info):
     auth_headers = {"test": "test"}
     with unittest.mock.patch(
-        "framework.utils.clients.service_account_token.Client.auth_headers",
+        "mlrun.auth.service_account_token.Client.auth_headers",
         auth_headers,
     ):
         iguazio_client.delete_project(

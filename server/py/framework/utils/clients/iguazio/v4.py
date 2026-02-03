@@ -24,6 +24,7 @@ from iguazio.schemas import (
     UpdateProjectOwnerOptionsV1,
 )
 
+import mlrun.auth.service_account_token as service_account_token
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.types
@@ -31,7 +32,6 @@ import mlrun.errors
 from mlrun.utils import get_in
 
 import framework.utils.clients.helpers as clients_helpers
-import framework.utils.clients.service_account_token as service_account_token
 import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 

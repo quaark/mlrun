@@ -21,6 +21,7 @@ import fastapi.concurrency
 import humanfriendly
 import sqlalchemy.orm
 
+import mlrun.auth.service_account_token as service_account_token
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -34,7 +35,6 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.messaging
 import framework.utils.clients.nuclio
-import framework.utils.clients.service_account_token as service_account_token
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
 import services.alerts.crud

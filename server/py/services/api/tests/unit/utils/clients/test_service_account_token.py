@@ -16,10 +16,10 @@ from unittest import mock
 
 import pytest
 
+import mlrun.auth.service_account_token as service_account_token
 import mlrun.common.schemas
 
-import framework.utils.clients.service_account_token as service_account_token
-
+TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND = "sa"
 TEST_TOKEN = "test-token"
 TEST_NEW_TOKEN = "new-token"
 TEST_TOKEN_EXPIRATION_SECONDS = 3600
@@ -39,17 +39,17 @@ def patch_config(token_path):
     with (
         mock.patch.object(
             service_account_token_client,
-            "_TOKEN_PATH",
+            "_token_path",
             token_path,
         ),
         mock.patch.object(
             service_account_token_client,
-            "_TOKEN_EXPIRATION_SECONDS",
+            "_token_expiration_seconds",
             TEST_TOKEN_EXPIRATION_SECONDS,
         ),
         mock.patch.object(
             service_account_token_client,
-            "_TOKEN_EXPIRATION_BUFFER_SECONDS",
+            "_token_expiration_buffer_seconds",
             TEST_TOKEN_EXPIRATION_BUFFER_SECONDS,
         ),
     ):
@@ -81,15 +81,19 @@ def test_token_expired_forces_reload(patch_config, patch_is_token_expired):
     with mock.patch("builtins.open", mock.mock_open(read_data=TEST_NEW_TOKEN)) as m:
         token = client.token
         assert token == TEST_NEW_TOKEN
-        m.assert_called_once_with(client._TOKEN_PATH)
+        m.assert_called_once_with(client._token_path)
 
 
 def test_auth_headers(patch_config, patch_is_token_expired):
     patch_is_token_expired.return_value = False
     client = service_account_token.Client()
     expected = {
-        mlrun.common.schemas.HeaderNames.igz_authenticator_kind: "sa",
-        "Authorization": f"Bearer {TEST_TOKEN}",
+        mlrun.common.schemas.HeaderNames.igz_authenticator_kind: (
+            TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND
+        ),
+        mlrun.common.schemas.HeaderNames.authorization: (
+            mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer + TEST_TOKEN
+        ),
     }
     assert client.auth_headers == expected
 
@@ -100,8 +104,14 @@ def test_escalate_request_headers(patch_config, patch_is_token_expired):
     original = {"foo": "bar"}
     result = client.escalate_request_headers(original)
     assert result["foo"] == "bar"
-    assert result[mlrun.common.schemas.HeaderNames.igz_authenticator_kind] == "sa"
-    assert result["Authorization"] == f"Bearer {TEST_TOKEN}"
+    assert (
+        result[mlrun.common.schemas.HeaderNames.igz_authenticator_kind]
+        == TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND
+    )
+    assert (
+        result[mlrun.common.schemas.HeaderNames.authorization]
+        == mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer + TEST_TOKEN
+    )
 
 
 def test_token_file_missing(patch_config, patch_is_token_expired):

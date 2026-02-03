@@ -181,6 +181,8 @@ class HTTPRunDB(RunDBInterface):
                 token_endpoint=config.auth_token_endpoint,
                 timeout=config.auth_with_oauth_token.request_timeout,
             )
+        elif config.auth_with_service_account.enabled:
+            self.token_provider = mlrun.auth.ServiceAccountTokenProvider()
         else:
             username, password, token = mlrun.platforms.add_or_refresh_credentials(
                 self._parsed_url.hostname,
@@ -265,26 +267,14 @@ class HTTPRunDB(RunDBInterface):
         elif self.token_provider:
             token = self.token_provider.get_token()
             if token:
-                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
-                if self.token_provider.is_iguazio_session():
-                    session_cookie = f'j:{{"sid": "{token}"}}'
-                    cookies = {
-                        "session": session_cookie,
-                    }
-                    kw["cookies"] = cookies
-                else:
-                    if (
-                        mlrun.common.schemas.HeaderNames.authorization
-                        not in kw.setdefault("headers", {})
-                    ):
-                        kw["headers"].update(
-                            {
-                                mlrun.common.schemas.HeaderNames.authorization: (
-                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
-                                    + token
-                                )
-                            }
-                        )
+                provider_cookies = self.token_provider.get_auth_cookies()
+                if provider_cookies:
+                    kw["cookies"] = provider_cookies
+                provider_headers = self.token_provider.get_auth_headers()
+                if provider_headers:
+                    headers = kw.setdefault("headers", {})
+                    for key, value in provider_headers.items():
+                        headers.setdefault(key, value)
 
         if mlrun.common.schemas.HeaderNames.client_version not in kw.setdefault(
             "headers", {}
@@ -680,7 +670,8 @@ class HTTPRunDB(RunDBInterface):
                         "oauth_external_token_endpoint"
                     )
 
-                config.auth_with_oauth_token.enabled = True
+                if not config.auth_with_service_account.enabled:
+                    config.auth_with_oauth_token.enabled = True
 
         except Exception as exc:
             logger.warning(

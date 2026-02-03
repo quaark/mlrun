@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun
 import mlrun.auth.utils
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.config import config as mlconf
+
+_SERVICE_ACCOUNT_AUTHENTICATOR_KIND = "sa"
+_TOKEN_EXPIRATION_BUFFER_MULTIPLIER_BASE = 1
 
 
 class Client(
@@ -29,19 +32,24 @@ class Client(
     """
 
     _SERVICE_ACCOUNT_AUTHENTICATION_HEADER = {
-        mlrun.common.schemas.HeaderNames.igz_authenticator_kind: "sa",
+        mlrun.common.schemas.HeaderNames.igz_authenticator_kind: (
+            _SERVICE_ACCOUNT_AUTHENTICATOR_KIND
+        ),
     }
 
-    _TOKEN_PATH = mlrun.mlconf.httpdb.authentication.service_account.token_path
-    _TOKEN_EXPIRATION_SECONDS = (
-        mlrun.mlconf.httpdb.authentication.service_account.token_expiration_seconds
-    )
-    _TOKEN_EXPIRATION_BUFFER_SECONDS = _TOKEN_EXPIRATION_SECONDS * (
-        1 - mlrun.mlconf.auth_with_oauth_token.refresh_threshold
-    )
-
     def __init__(self) -> None:
+        """
+        Initialize the service account token client.
+        """
         self._token_cache = None
+        self._token_path = mlconf.httpdb.authentication.service_account.token_path
+        self._token_expiration_seconds = (
+            mlconf.httpdb.authentication.service_account.token_expiration_seconds
+        )
+        self._token_expiration_buffer_seconds = self._token_expiration_seconds * (
+            _TOKEN_EXPIRATION_BUFFER_MULTIPLIER_BASE
+            - mlconf.auth_with_oauth_token.refresh_threshold
+        )
 
     def escalate_request_headers(self, headers: dict[str, str]) -> dict[str, str]:
         """
@@ -61,7 +69,9 @@ class Client(
         Get the service account authentication headers.
         """
         headers = self._SERVICE_ACCOUNT_AUTHENTICATION_HEADER.copy()
-        headers["Authorization"] = f"Bearer {self.token}"
+        headers[mlrun.common.schemas.HeaderNames.authorization] = (
+            mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer + self.token
+        )
         return headers
 
     @property
@@ -70,11 +80,11 @@ class Client(
         Get the service account token, using a cached value if it's still valid.
         """
         if self._token_cache and not mlrun.auth.utils.is_token_expired(
-            self._token_cache, self._TOKEN_EXPIRATION_BUFFER_SECONDS
+            self._token_cache, self._token_expiration_buffer_seconds
         ):
             return self._token_cache
 
-        with open(self._TOKEN_PATH) as token_file:
+        with open(self._token_path) as token_file:
             self._token_cache = token_file.read().strip()
 
         return self._token_cache

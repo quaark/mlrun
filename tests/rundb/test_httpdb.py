@@ -48,7 +48,11 @@ import mlrun.errors
 import mlrun.projects.project
 import mlrun.secrets
 from mlrun import RunObject
-from mlrun.auth.providers import IGTokenProvider, StaticTokenProvider
+from mlrun.auth.providers import (
+    IGTokenProvider,
+    ServiceAccountTokenProvider,
+    StaticTokenProvider,
+)
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -56,6 +60,18 @@ project_dir_path = Path(__file__).absolute().parent.parent.parent
 Server = namedtuple("Server", "url conn workdir")
 
 docker_tag = "mlrun/test-api"
+TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND = "sa"
+TEST_SERVICE_ACCOUNT_TOKEN = "test-sa-token"
+TEST_SERVICE_ACCOUNT_AUTH_HEADERS = {
+    mlrun.common.schemas.HeaderNames.igz_authenticator_kind: (
+        TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND
+    ),
+    mlrun.common.schemas.HeaderNames.authorization: (
+        mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+        + TEST_SERVICE_ACCOUNT_TOKEN
+    ),
+}
+TEST_TOKEN_ENDPOINT = "https://mock/token_endpoint"
 
 
 def free_port():
@@ -464,6 +480,67 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         db.trigger_migrations()
+
+
+def test_service_account_auth_headers(
+    requests_mock: requests_mock_package.Mocker, monkeypatch
+):
+    """Verify service-account auth headers are applied to HTTP calls."""
+    monkeypatch.setattr(mlrun.mlconf.auth_with_client_id, "enabled", False)
+    monkeypatch.setattr(mlrun.mlconf.auth_with_oauth_token, "enabled", False)
+    monkeypatch.setattr(mlrun.mlconf.auth_with_service_account, "enabled", True)
+    monkeypatch.setattr(
+        mlrun.auth.ServiceAccountTokenProvider,
+        "get_token",
+        lambda self: TEST_SERVICE_ACCOUNT_TOKEN,
+    )
+    monkeypatch.setattr(
+        mlrun.auth.ServiceAccountTokenProvider,
+        "get_auth_headers",
+        lambda self: TEST_SERVICE_ACCOUNT_AUTH_HEADERS,
+    )
+
+    db_url = "http://mock-server:1919"
+    db = HTTPRunDB(db_url)
+    assert isinstance(db.token_provider, ServiceAccountTokenProvider)
+    requests_mock.post(f"{db_url}/api/v1/operations/migrations", status_code=200)
+
+    db.trigger_migrations()
+
+    last_request = requests_mock.last_request
+    assert (
+        last_request.headers[mlrun.common.schemas.HeaderNames.authorization]
+        == mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+        + TEST_SERVICE_ACCOUNT_TOKEN
+    )
+    assert (
+        last_request.headers[mlrun.common.schemas.HeaderNames.igz_authenticator_kind]
+        == TEST_SERVICE_ACCOUNT_AUTHENTICATOR_KIND
+    )
+
+
+def test_service_account_auth_precedence_after_oauth(monkeypatch):
+    """Verify OAuth takes precedence over service-account auth."""
+    monkeypatch.setattr(mlrun.mlconf.auth_with_client_id, "enabled", False)
+    monkeypatch.setattr(mlrun.mlconf.auth_with_oauth_token, "enabled", True)
+    monkeypatch.setattr(mlrun.mlconf.auth_with_service_account, "enabled", True)
+    monkeypatch.setattr(mlrun.mlconf, "auth_token_endpoint", TEST_TOKEN_ENDPOINT)
+    oauth_provider = MagicMock()
+    ig_token_provider_mock = MagicMock(return_value=oauth_provider)
+    service_account_provider_mock = MagicMock()
+
+    monkeypatch.setattr(mlrun.auth, "IGTokenProvider", ig_token_provider_mock)
+    monkeypatch.setattr(
+        mlrun.auth,
+        "ServiceAccountTokenProvider",
+        service_account_provider_mock,
+    )
+
+    db = HTTPRunDB("http://mock-server:1919")
+
+    assert db.token_provider is oauth_provider
+    assert ig_token_provider_mock.call_count == 1
+    assert service_account_provider_mock.call_count == 0
 
 
 def _encode_jwt(payload: dict) -> str:

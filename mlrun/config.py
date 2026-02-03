@@ -914,6 +914,9 @@ default_config = {
         # Backoff interval in seconds between token refresh retry attempts when running in a runtime.
         "runtime_token_refresh_backoff": 10,
     },
+    "auth_with_service_account": {
+        "enabled": False,
+    },
     # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",
     "services": {

@@ -501,13 +501,13 @@ class MLRunAPIRemoteStep(RemoteStep):
         elif self.rundb.token_provider:
             token = self.rundb.token_provider.get_token()
             if token:
-                # Iguazio auth doesn't support passing token through bearer, so use cookie instead
-                if self.rundb.token_provider.is_iguazio_session():
-                    session_cookie = f'session=j:{{"sid": "{token}"}}'
-                    headers["cookie"] = session_cookie
-                else:
-                    if "Authorization" not in kw.setdefault("headers", {}):
-                        headers.update({"Authorization": "Bearer " + token})
+                provider_cookies = self.rundb.token_provider.get_auth_cookies()
+                if provider_cookies:
+                    kw["cookies"] = provider_cookies
+                provider_headers = self.rundb.token_provider.get_auth_headers()
+                if provider_headers:
+                    for key, value in provider_headers.items():
+                        headers.setdefault(key, value)
 
         if mlrun.common.schemas.HeaderNames.client_version not in headers:
             headers.update(
